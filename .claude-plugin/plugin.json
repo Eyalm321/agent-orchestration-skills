@@ -1,0 +1,8 @@
+{
+  "name": "agent-orchestration-skills",
+  "skills": [
+    "./skills/use-claude",
+    "./skills/use-hyperpanes",
+    "./skills/fan-out"
+  ]
+}
