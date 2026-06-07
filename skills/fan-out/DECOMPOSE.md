@@ -44,7 +44,6 @@ The whole point: **maximise the number of agents that can safely work at once.**
       "worktree": "C:\\path\\to\\repo.fanout\\auth",
       "model": "opus",
       "effort": "high",
-      "color": "#e5484d",
       "handoff": ".fanout/handoffs/auth.md",
       "issues": ["#12", "#15", "#18"],
       "hitl": ["#15"],
@@ -64,4 +63,4 @@ The whole point: **maximise the number of agents that can safely work at once.**
 }
 ```
 
-`model`/`effort` default to the run-wide uniform values; `color` is a distinct pane frame color per track (passed to `open_pane`); they differ only when the user overrides a track at the checkpoint. `mode` is `contract` or `wave`.
+`model`/`effort` default to the run-wide uniform values and differ only when the user overrides a track at the checkpoint. (No per-track `color` — hyperpanes tints each pane automatically from its worktree's git project; see SKILL.md step 8.) `mode` is `contract` or `wave`.

@@ -37,8 +37,8 @@ For every logical edge that crosses between tracks, freeze the shared interface 
 Show the user and get explicit approval **before** creating worktrees or launching anything:
 - the merged graph (logical + file edges) and the proposed tracks
 - each cross-edge: **contract** or **wave/sync**
-- worktree path + branch per track
-- model + effort + a distinct frame **color** per track (uniform model/effort default; let them override per track)
+- worktree path + branch per track (hyperpanes auto-titles each pane by its worktree folder and gives it a distinct frame color — see step 8)
+- model + effort per track (uniform default; let them override per track)
 - which issues are **HITL** — the agent will pause and ask in its pane
 
 Do not proceed until the user confirms.
@@ -52,9 +52,10 @@ Write one handoff per track to `.fanout/handoffs/<track>.md`, the contracts to `
 ### 8. Launch into hyperpanes — composes `/use-hyperpanes` + `/use-claude`
 Open one pane per track via the hyperpanes MCP `open_pane` (or the control-API / launch-the-app fallback `/use-hyperpanes` routes for you):
 
-`open_pane { command:"claude", args:["--model",<m>,"--effort",<l>,"--append-system-prompt-file","FANOUT-HANDOFF.md","<kickoff>"], label:"<track>", color:"<track color>", cwd:"<worktree>", meta:{ parent:"fanout-<run>", role:"fanout-track", task:"<track>" } }`
+`open_pane { command:"claude", args:["--model",<m>,"--effort",<l>,"--append-system-prompt-file","FANOUT-HANDOFF.md","<kickoff>"], cwd:"<worktree>", meta:{ parent:"fanout-<run>", role:"fanout-track", task:"<track>" } }`
 
-- **Verbatim `args`** (not a shell string) avoids the quoting footgun — see `/use-claude`. `cwd` starts claude in the worktree so `--append-system-prompt-file FANOUT-HANDOFF.md` resolves.
+- **No `label`/`color`** — hyperpanes tints each pane from its worktree's git project: a frame color hashed from the worktree path (stable, distinct per track) and the worktree folder name (the track name) as the title, applied automatically once claude's shell starts in `cwd`. Passing a `label` would *suppress* the auto-title (the project name only replaces a default label).
+- **Verbatim `args`** (not a shell string) avoids the quoting footgun — see `/use-claude`. `cwd` starts claude in the worktree so `--append-system-prompt-file FANOUT-HANDOFF.md` resolves (and triggers the project tint above).
 - Then `set_layout {layout:"grid"}` to tile the tracks in one window. Optionally `mint_token {paneIds:[…]}` per track for recursive sub-orchestration (hand it to the pane via `open_pane env`).
 - `<kickoff>` = `Read FANOUT-HANDOFF.md (also in your system prompt) and begin. Work your issues in order, commit to this branch, and pause at any [HITL] slice to ask me in your pane.`
 

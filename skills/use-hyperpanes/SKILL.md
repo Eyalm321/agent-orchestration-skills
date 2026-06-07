@@ -27,6 +27,7 @@ These use MCP tool names. On the Control-API tier each maps 1:1 to an HTTP call 
 
 ### B. Open & arrange panes (live)
 - `open_pane {command?, args?, label?, cwd?, shell?, color?, meta?, env?, windowId?}` → returns `paneId`. Pass `args` (string array) for **verbatim argv** with no shell re-parse. **Put the agent's first prompt as the LAST arg** so it runs turn 1 on startup: `command:"claude", args:["--append-system-prompt-file","persona.md","--model","opus","<first prompt>"]`. **Don't** launch claude bare then type the first prompt in — that hits the cold-start Enter-swallow `prompt_pane` exists to recover from. Full claude grammar: `/use-claude`.
+- **Project auto-tint — usually leave `label`/`color` unset.** When a pane's shell enters a git repo (via `cwd` at launch or a later `cd`), hyperpanes tints it from that project: a frame **color** hashed from the repo path (stable per repo, distinct across repos) and the repo/folder **name** as the title. Color always wins; the title only replaces a *default* label (`shell`/`pane N`), so **passing a `label` suppresses the project title**. Set `label`/`color` on `open_pane` only to deliberately override the tint.
 - Arrange/edit: `set_layout {layout, tabId?}`, `focus_pane`, `close_pane`, `restart_pane`, `rename_pane`, `recolor_pane`, `set_meta`. Inventory: `list_panes`.
 
 ### C. Read a pane

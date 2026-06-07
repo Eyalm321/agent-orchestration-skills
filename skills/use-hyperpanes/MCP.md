@@ -91,6 +91,7 @@ An `activity` event (busy⇄idle⇄exited) fires `resources/list_changed` — th
 ## Footguns
 - `mode:"cli"` silently drops fields — default to `file`; check `droppedFields` if you use `cli`.
 - `command`+`args` for verbatim argv; `command` alone gets shell-reparsed (spaces/quotes mangled).
+- A pane whose shell enters a git repo is **auto-tinted** from that project: color (always) + title (only while the label is still the default `shell`/`pane N`). Set `label`/`color` on `open_pane` only to override — an explicit `label` blocks the project title.
 - `submit:true` + no trailing newline; lone `\n` = bracketed paste.
 - `activity` is a heuristic, not "done". `awaitingInput` (from `prompt_pane`/`read_pane`) is the better "blocked on prompt" signal.
 - Gate refusals are `{ok:false,refused:true}` (not MCP errors); app-side 403 *throws* (`isError:true`).
