@@ -43,6 +43,11 @@ Run after the tracks finish (a deliberate, supervised step — not automated):
 2. **Swap stubs.** For each contract, replace the consumer's stub with the producer's real implementation.
 3. **Integration tests.** Run the full suite across the merged result — the contracts were promises; this is where they're verified.
 4. **Resolve.** Fix any conflict or contract-drift surfaced. If a producer broke its frozen interface, that's the root cause — fix the producer, re-run.
-5. **Clean up.** `git worktree remove <path>` per track once merged; delete the `.fanout/` run dir if you don't want to keep the record.
+5. **Clean up — tear every track down.** Once a track's branch is merged, leave no worktree or pane behind:
+   - **Close its pane.** `close_pane { paneId }` for that track's pane id — find it via `list_panes` (match the `meta.task`/`role:"fanout-track"` you set at launch). Close the **agent panes by id only — never the shared tab**: the tracks run in the user's existing/active tab, and there is no `close_tab`.
+   - **Remove its worktree.** `pwsh scripts/remove-worktrees.ps1 -Plan .fanout/plan.json` (idempotent counterpart to `make-worktrees.ps1`: `git worktree remove` per track + prune; skips a dirty worktree unless `-Force`). Add `-DeleteBranches` to also `git branch -d fanout/<track>` for the merged branches, or do `git worktree remove <path>` by hand.
+   - Then delete the `.fanout/` run dir if you don't want to keep the record.
+
+   Do it per track as each merges, or all at once at the end — but **fan-in isn't done until every fan-out worktree is removed and every fan-out pane is closed.**
 
 If integration tests fail in a way that needs real debugging, hand off to `/diagnose`.

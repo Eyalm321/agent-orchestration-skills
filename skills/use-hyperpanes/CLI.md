@@ -4,6 +4,27 @@ Use the CLI when the `mcp__hyperpanes__*` tools are not connected. **The CLI onl
 
 hyperpanes runs **single-instance**: a second `hyperpanes …` while it's open routes its windows into the running app rather than starting a rival (an argless second launch just focuses the existing window).
 
+## Headless worker (`hyperpanes worker`) — the live-op exception
+
+`hyperpanes worker` is the one subcommand that is **not** launch/compose: it's a **control-API client** that drains a durable work queue, so it needs the **app already running with Allow agent control on** (it discovers `control.json` itself, or `HYPERPANES_CONTROL_FILE`). App ≥0.0.15.
+
+```
+hyperpanes worker --queue <name> [--worker <id>] [--count N] [--worktree] \
+  [--retry-window <secs>] [--nack-delay <ms>] -- <cmd> [args...]
+```
+
+Loops: **claim** one task → run `<cmd>` with the task injected as env (`HP_TASK_ID`, `HP_TASK_PAYLOAD`, `HP_TASK_TITLE`, `HP_FENCING_TOKEN`, `HP_QUEUE`) → **ack** on exit 0 / **nack** on non-zero → repeat until the queue drains, then exit 0 (a pane running it auto-closes). The child runs **directly** (no shell); for `$HP_TASK_PAYLOAD` expansion wrap it: `-- sh -c 'claude -p "$HP_TASK_PAYLOAD"'`.
+
+| Flag | Effect |
+|---|---|
+| `--count N` | N competing workers in one process (exits when all drain). |
+| `--worktree` | run each task in a throwaway git worktree off HEAD — auto-removed on finish (commit stays on its branch); `.serena/` excluded so `git add -A` can't sweep it in. Needs cwd in a git repo. |
+| `--retry-window <secs>` | keep polling after the queue empties so backoff retries get reclaimed in one run (default 0 = exit on drain). |
+| `--nack-delay <ms>` | override the retry backoff on failure. |
+| `--worker <id>` | worker id (shown as `claimedBy`; default `worker-<pid>`, suffixed `-1..-N` under `--count`). |
+
+Enqueue tasks via the MCP `enqueue_task` or the control API. The MCP **`spawn_workers`** tool wraps this in one call (opens the pane for you) — see [MCP.md](MCP.md#work-queue--worker-pool).
+
 ## Locating the executable
 
 The installer adds its folder to the **user PATH** (verified: `C:\Program Files\Hyperpanes` is on PATH here), so in a **fresh** terminal just run `hyperpanes …` — the exe is `Hyperpanes.exe` and resolves case-insensitively.
