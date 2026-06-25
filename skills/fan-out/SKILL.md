@@ -11,6 +11,16 @@ Turn a set of ready issues into the **maximum number of independent parallel age
 
 Composes `/handoff` (one per track), `/use-hyperpanes` (launch + monitor the panes), `/use-claude` (the per-track claude invocation), and reuses the issue-tracker config from `/setup-matt-pocock-skills`.
 
+## Two engines — fixed tracks vs worker pool
+
+This skill builds **fixed tracks**: a dependency-graph decomposition where each agent owns a specific *ordered* set of issues, with frozen cross-edge contracts and in-pane HITL pauses. That's the right tool when the work has a real DAG, cross-track interfaces, or HITL gates — the process below.
+
+When the ready issues are instead a **bag of independent AFK tasks** (no cross-edges, no HITL, homogeneous), the **worker-pool** path is simpler and self-managing — don't pre-assign tracks, just let competing consumers drain a queue (`/use-hyperpanes` → Worker pool):
+- `enqueue_task {queue, title, payload}` per issue (payload = the issue ref / its `/handoff`), then
+- `spawn_workers {queue, command:"sh -c 'claude -p \"$HP_TASK_PAYLOAD\" --append-system-prompt-file …'", count:N, isolation:"worktree"}` — or the bare `hyperpanes worker --queue <q> --count N --worktree -- …`.
+
+The runner handles **distribution** (exactly-once claim, no manual track assignment), **isolation** (`--worktree` off HEAD), and **teardown** (worktree auto-removed, pane auto-closes on drain) — cross-platform, superseding the Windows-only `make-worktrees.ps1`/`remove-worktrees.ps1` and the manual pane teardown in steps 7–9, and giving free retry/dead-letter on a failing task. Trade-off: no frozen cross-edge contracts and no graph-ordered fan-in, so it fits independent issues, not a DAG. Use the fixed-track process below when the graph/contracts/HITL actually matter.
+
 ## Preconditions
 
 - [ ] Tracker config known (run `/setup-matt-pocock-skills` if not).
@@ -47,7 +57,7 @@ Do not proceed until the user confirms.
 Write one handoff per track to `.fanout/handoffs/<track>.md`, the contracts to `.fanout/contracts/<name>.md`, and the manifest to `.fanout/plan.json` (schema in DECOMPOSE.md). Recommend the user gitignore `.fanout/`.
 
 ### 7. Create worktrees
-`pwsh scripts/make-worktrees.ps1 -Plan .fanout/plan.json` — one worktree + branch (`fanout/<track>`) per track; copies each handoff in as `FANOUT-HANDOFF.md`.
+`pwsh scripts/make-worktrees.ps1 -Plan .fanout/plan.json` — one worktree + branch (`fanout/<track>`) per track; copies each handoff in as `FANOUT-HANDOFF.md`. *(These scripts need `pwsh`. On Linux/macOS, or to skip manual worktree bookkeeping entirely, prefer the worker-pool path above — `hyperpanes worker --worktree` isolates + tears down per task natively.)*
 
 ### 8. Launch into hyperpanes — composes `/use-hyperpanes` + `/use-claude`
 Open one pane per track via the hyperpanes MCP `open_pane` (or the control-API / launch-the-app fallback `/use-hyperpanes` routes for you):
@@ -62,4 +72,4 @@ Open one pane per track via the hyperpanes MCP `open_pane` (or the control-API /
 **Then monitor — don't walk away.** `list_panes`/`activity` shows which tracks are busy/idle/exited; `read_pane` inspects any track; answer HITL grills in-pane (`prompt_pane`/`send_keys`). This live drive-and-watch is the whole reason fan-out targets hyperpanes rather than blind terminal tabs.
 
 ### 9. Fan-in (separate step) — see [CONTRACTS.md](CONTRACTS.md)
-Wait for every track to go `idle`/`exited` (watch `list_panes` activity, or the `activity` event). Then merge branches in dependency order → swap each contract stub for the real implementation → run integration tests → resolve conflicts. Only then `close_pane` each track and `git worktree remove` its worktree.
+Wait for every track to go `idle`/`exited` (watch `list_panes` activity, or the `activity` event). Then merge branches in dependency order → swap each contract stub for the real implementation → run integration tests → resolve conflicts. **Then tear every track down**: `close_pane` each fan-out pane by its id (agent panes only — never the shared tab) and remove its worktree with `pwsh scripts/remove-worktrees.ps1 -Plan .fanout/plan.json` (add `-DeleteBranches` to also drop merged `fanout/*` branches). Fan-in isn't done until no fan-out worktree or pane is left.

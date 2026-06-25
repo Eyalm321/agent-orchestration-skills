@@ -48,6 +48,14 @@ Hierarchy is **data**: set `meta.parent` on each child (reserved meta keys: `rol
 - Message bus (preferred for MCP-capable workers — structured, no screen-scraping): `send_message {to, body}`, `send_to_parent {body}`, `broadcast_subtree {body, root?}`, `read_messages {paneId, after?}`. Run workers in an inbox-poll loop so they pick messages up unprompted.
 - `lock_pane {paneId, owner, ttlMs?}` / `unlock_pane` — advisory write lock; pass the same `owner` to input calls while held. `whoami {paneId?}` — a manager-in-a-pane learns its own identity (needs `HYPERPANES_PANE_ID`).
 
+### F. Worker pool — durable queue + competing consumers
+A **work queue** (durable, SQLite) fans an unordered backlog of independent tasks out to competing workers — the inverse of E's directed conversation. Reach for it for a *bag of independent tasks* (no fixed per-agent assignment, AFK, survives restarts); use E for a directed manager↔worker dialogue. See the tool table in [MCP.md](MCP.md#work-queue--worker-pool).
+- **Enqueue:** `enqueue_task {queue, payload, title?, priority?, maxAttempts?, visibilityTimeoutMs?}` — `payload` is the opaque task body the worker reads.
+- **Spawn a pool (one call):** `spawn_workers {queue, command, count?, isolation?, cwd?}` opens a pane running the native `hyperpanes worker` runner bound to the queue. Each worker `claim`s a task and runs `command` via `sh -c` with the task in its env (`HP_TASK_ID`/`HP_TASK_PAYLOAD`/`HP_TASK_TITLE`/`HP_FENCING_TOKEN`/`HP_QUEUE`), `ack`s on exit 0 / `nack`s on non-zero, loops until drain, then exits (pane auto-closes). `count` = competing workers; `isolation:"worktree"` runs each task in a throwaway git worktree that auto-removes (commit stays on its branch). **Needs mcp ≥0.1.10 + app ≥0.0.15.**
+- **Bare runner / headless:** `hyperpanes worker --queue <q> [--count N] [--worktree] -- <cmd>` is the same loop from the CLI (see [CLI.md](CLI.md)) — a control-API client, so it needs the app running with control on.
+- **Fencing + retries:** every `claim` returns a `fencingToken` that `ack`/`nack`/`extend` must echo; a heartbeat auto-`extend`s long tasks; `nack` retries with backoff up to `maxAttempts` then dead-letters. Inspect with `list_tasks {queue, state?}` / `list_queues`; `purge_queue` drops terminal tasks.
+- This replaces hand-rolled claim/ack shell loops + manual pane/worktree teardown.
+
 ## Footguns (first-use — full lists in the reference files)
 - A trailing `\n` in one write is read as a **bracketed paste**, not Enter — always `submit:true` (or use `prompt_pane`).
 - `read_pane mode` is `raw|screen` (default `raw`); `tail`/`strip`/`since`/`waitForIdle` are **separate params**, not modes.
