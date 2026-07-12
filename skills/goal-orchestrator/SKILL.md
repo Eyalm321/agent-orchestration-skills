@@ -38,7 +38,10 @@ For each goal you're given (free text):
    check and state it; don't block.
 2. **Spawn a spec agent** — one dedicated pane per goal, in the project cwd, running `claude` with
    the spec-agent persona (this skill's `SPEC.md`) via `--append-system-prompt-file`. Model:
-   `claude-opus-4-8[1m]` for a hard/large goal, `claude-fable-5` for a lighter one — pick per goal.
+   use **`$HP_GOAL_SPEC_MODEL`** if it's set in your env (the user picked it in the New-goal
+   dialog); otherwise `claude-opus-4-8[1m]` for a hard/large goal, `claude-fable-5[1m]` for a
+   lighter one. Pass the impl-agent model down to the spec agent too (env `HP_GOAL_IMPL_MODEL`, or
+   tell it in the prompt) so it fans out impl agents on the chosen tier.
    `set_meta` the pane: `role=spec`, `project=<path>`, `parent=<your pane id>`, `goal=<goal id>`.
    Then `prompt_pane` it the goal intent + acceptance criteria + your pane id + the goal's queue
    name (e.g. `g1`) so it can `send_to_parent` and fan out.
