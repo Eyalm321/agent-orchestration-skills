@@ -30,9 +30,10 @@ agent per subtask, competing-consumers):
   self-contained instruction derived from the spec (what to build, where, its own "done when").
   Use `dependsOn` to encode the DAG: a task with unfinished deps stays unclaimable until they're
   `done` (the queue enforces this), so you can enqueue the whole graph up front.
-- `spawn_workers {queue, count:N, isolation:"worktree", command:"sh -c 'claude -p \"$HP_TASK_PAYLOAD\" --append-system-prompt-file <this dir>/IMPL.md --model claude-sonnet-5'"}`
-  (or the bare `hyperpanes worker --queue <q> --count N --worktree -- …`). Impl agents are sonnet,
-  each in its own git worktree off HEAD.
+- `spawn_workers {queue, count:N, isolation:"worktree", command:"sh -c 'claude -p \"$HP_TASK_PAYLOAD\" --append-system-prompt-file <this dir>/IMPL.md --model ${HP_GOAL_IMPL_MODEL:-claude-sonnet-5[1m]}'"}`
+  (or the bare `hyperpanes worker --queue <q> --count N --worktree -- …`). Impl agents run on
+  `$HP_GOAL_IMPL_MODEL` (the tier the user picked in the New-goal dialog; default
+  `claude-sonnet-5[1m]`), each in its own git worktree off HEAD.
 
 ## 3. Integrate & verify
 
