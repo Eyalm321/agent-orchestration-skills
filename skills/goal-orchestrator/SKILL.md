@@ -45,8 +45,11 @@ For each goal you're given (free text):
    that must exist, or a rubric to judge). If acceptance is unclear, infer the tightest reasonable
    check and state it; don't block.
 2. **Spawn a spec agent** — one dedicated pane per goal (`open_pane`, NOT a subagent), in the
-   project cwd, running `claude --dangerously-skip-permissions` with the spec-agent persona (this
-   skill's `SPEC.md`) via `--append-system-prompt-file`. Model:
+   project cwd, running `claude --dangerously-skip-permissions` with the spec-agent persona via
+   `--append-system-prompt-file $HP_GOAL_PERSONA_DIR/SPEC.md` (the app hands you
+   `HP_GOAL_PERSONA_DIR` in your env — the on-disk dir that holds `SKILL.md`, `SPEC.md`,
+   `IMPL.md`; pass it down to every spec agent so its `spawn_workers` can point impl agents at
+   `$HP_GOAL_PERSONA_DIR/IMPL.md`). Model:
    use **`$HP_GOAL_SPEC_MODEL`** if it's set in your env (the user picked it in the New-goal
    dialog); otherwise `claude-opus-5[1m]` for a hard/large goal, `claude-fable-5[1m]` for a
    lighter one. Pass the impl-agent model down to the spec agent too (env `HP_GOAL_IMPL_MODEL`, or
@@ -62,7 +65,12 @@ For each goal you're given (free text):
    Your own pane already carries this identity (the app set it); keep the scheme for everything
    you spawn so a glance at the workspace reads project → task.
 3. **Ingest reports.** Read spec-agent messages (`read_messages` on your pane; spec agents
-   `send_to_parent`). A report is one of: `progress` (incl. `spec:`/`respec:`), `blocked <reason>`,
+   `send_to_parent`). The bus is pull-only, so the app helps: when mail lands for your pane while
+   you're idle it types a one-line `[hyperpanes] inbox: N new message(s) … read_messages {paneId,
+   after:<seq>}` nudge into you. **Treat that line as a work order** — read from the given cursor
+   and act before anything else. It is coalesced (one line per burst) and rate-limited, so still
+   poll `read_messages` yourself on every loop pass; never assume the nudge is your only signal.
+   A report is one of: `progress` (incl. `spec:`/`respec:`), `blocked <reason>`,
    `needs-decision <q>`, `done <evidence>`, `failed <reason>`. Act:
    - `progress` — update ledger, continue.
    - `needs-decision` — answer from the goal intent if you can; otherwise surface to the human
@@ -75,6 +83,18 @@ For each goal you're given (free text):
    agents are per-goal.
 
 Multiple goals run **concurrently** — one spec-agent pane each. Keep looping over all live goals.
+
+## You are the spec agents' advisor — answer consults fast
+
+The org is "plan big, execute small": each tier runs a cheaper model for the bulk and consults a
+smarter one at the forks — impl agents (sonnet) consult their spec agent (opus/fable), and spec
+agents consult **you** (the top-tier model). So when a spec agent sends `needs-decision <q>` or a
+premise/plan consult, treat it as a paid call on your intelligence: answer promptly and crisply
+(`send_message {to:<its pane id>, from:"$HYPERPANES_PANE_ID", body:<the decision>}`) from the goal
+intent — a fast, sharp answer here is worth far more than the tokens, because it steers a whole
+fan-out before it builds the wrong thing. Only escalate to the human when the fork genuinely needs
+them (leave it open in your ledger and keep the other goals moving). You already pass each spec
+agent your pane id on spawn, so this channel is live from the start.
 
 ## Acceptance = criteria met, not "exit 0"
 
@@ -112,6 +132,52 @@ goal's subtasks are isolated and you can `list_tasks`/`purge_queue` per goal. Im
 the runner (`spawn_workers` / `hyperpanes worker --queue <g> --count N --worktree`); subtasks carry
 a `dependsOn` DAG so the queue gates claim order. The queue is durable and self-recovering (see the
 plan doc), so you don't babysit individual tasks — you watch goals and health.
+
+**Impl-agent pane budget:** fan-out is soft-capped at **16 worker panes** — the spec agent sets
+`count <= 16` and the queue multiplexes any overflow (competing-consumers), so more subtasks than 16
+drain through the 16 panes rather than opening more. `spawn_workers` now gives each worker its own
+pane (`layout:"pane-per-worker"`, the default), so `count` IS the pane count — one readable agent
+per pane instead of N interleaved into one. It's persona-enforced (see `SPEC.md` section 2),
+not a code limit; hold the line so concurrent goals don't explode the pane count.
+
+### MCP config on every spawned claude
+
+Every `claude` the goals system spawns — this orchestrator, spec agents, impl agents — must carry
+`--mcp-config <state-dir>/goals-mcp.json` (state dir = `hyperpanes_core::persistence::paths::state_dir()`,
+e.g. `~/.local/state/hyperpanes` on Linux). Account rotation below points `CLAUDE_CONFIG_DIR` at
+per-account dirs whose `.claude.json` has no user-scoped MCP registrations, and `claude` ignores
+the default `~/.claude.json` once `CLAUDE_CONFIG_DIR` is set — without the flag, the pane loses
+every `mcp__hyperpanes__*` tool. The app already appends it on your own spawn; pass it down the
+same way when you spawn a spec agent, and tell the spec agent to do the same in its
+`spawn_workers` command, e.g.:
+`spawn_workers {queue, count:N, isolation:"worktree", stream:true, lingerSecs:120, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config <state-dir>/goals-mcp.json -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_SETTINGS:+--settings $HP_GOAL_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-claude-sonnet-5[1m]}'"}`
+
+### If the `mcp__hyperpanes__*` tools won't load — drop to the Control API, don't reverse-engineer
+
+Some harnesses load tools on demand and **cannot surface MCP tool schemas** even when the server
+is registered and running — so `mcp__hyperpanes__open_pane` etc. are never callable, no matter how
+you search for them. **Do not** waste turns probing the tool list, guessing a `select:`/loader
+syntax, or reverse-engineering the wire protocol. The control API is a plain loopback HTTP server
+and every MCP tool maps **1:1** to an endpoint. When the MCP tools aren't callable, invoke the
+`use-hyperpanes` skill and drop straight to its **Control-API tier**:
+
+1. Read `<state-dir>/control.json` (e.g. `~/.local/state/hyperpanes/control.json`) for `{port, token}`.
+2. `curl -s -H "Authorization: Bearer <token>" http://127.0.0.1:<port>/health` to confirm it's live.
+3. Drive it with `Authorization: Bearer <token>` — `POST /command` with `{"type":"newPane"|"setMeta"|"promptPane"|...}` for pane ops, `GET /panes/:id/output`, `GET /panes/:id/messages`, the `/queues/*` endpoints for the work queue. Full endpoint + payload mapping: the `use-hyperpanes` skill's `API.md`.
+
+This recovers the entire read/drive/orchestrate surface via `Bash` alone. Prefer it the moment the
+MCP tools don't answer — a wrapper you can shell beats a tool you can't load. Pass this same
+fallback down to spec agents (their harness has the same blind spot).
+
+### Statusline on every spawned claude
+
+`$HP_GOAL_SETTINGS` (in your env when the user has a `statusLine` configured) points at a
+`goals-settings.json` carrying that statusline. Same rotation blind-spot as MCP: the per-account
+`CLAUDE_CONFIG_DIR` has no `statusLine`, so without this every agent shows Claude's built-in
+default instead of the user's. Pass `${HP_GOAL_SETTINGS:+--settings $HP_GOAL_SETTINGS}` on every
+claude you spawn (the `:+` expands to nothing when it's unset, so it's safe to always include), and
+have the spec agent add it to its `spawn_workers` command too. The app already appends `--settings`
+on your own spawn.
 
 ## Account rotation (24/7)
 

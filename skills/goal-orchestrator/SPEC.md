@@ -22,6 +22,22 @@ concrete **spec** and post it to your parent as `progress spec: <summary>`:
 The spec is the contract the impl agents build against and you verify against. Keep it in your
 context; you own it.
 
+**Right-size the decomposition — fan-out is a cost, not a reflex.** Spinning up an impl agent is
+expensive here: a git worktree plus a full `claude` boot per subtask, a much higher floor than a
+one-shot tool call. Decompose to arbitrage *real parallel work*, not out of habit:
+- **Small / atomic goal → don't fan out.** If the goal is one coherent change you could land in a
+  single worktree, just do it yourself (or enqueue exactly one subtask). The spec→queue→worktree
+  machinery only earns its keep when there's genuine parallelism to win; below that it's pure
+  overhead and latency.
+- **Batch trivia.** Don't dedicate an agent (and a worktree) to a two-line edit. Group small
+  related changes into one subtask; reserve a subtask for a chunk worth isolating.
+- **Verify the premise, not just the artifact.** Before fanning out, sanity-check the breakdown
+  itself: is this the right decomposition, are any subtasks missing, is the goal's implied
+  assumption actually true? Acceptance later audits what got *built* — nothing else audits whether
+  you broke the goal down correctly, so that's on you. If the premise is non-trivial, confirm it
+  (a read, a quick check, or an advisor consult to the orchestrator) before committing agents to
+  the wrong plan.
+
 ## 2. Fan out impl agents
 
 Enqueue the subtasks on your goal's queue and run **sonnet impl agents** (one worktree-isolated
@@ -33,11 +49,31 @@ prompt wedges the pane).
 - `enqueue_task {queue, title, payload, dependsOn?: [taskId...]}` per subtask — payload = a
   self-contained instruction derived from the spec (what to build, where, its own "done when").
   Use `dependsOn` to encode the DAG: a task with unfinished deps stays unclaimable until they're
-  `done` (the queue enforces this), so you can enqueue the whole graph up front.
-- `spawn_workers {queue, count:N, isolation:"worktree", command:"sh -c 'claude --dangerously-skip-permissions -p \"$HP_TASK_PAYLOAD\" --append-system-prompt-file <this dir>/IMPL.md --model ${HP_GOAL_IMPL_MODEL:-claude-sonnet-5[1m]}'"}`
+  `done` (the queue enforces this), so you can enqueue the whole graph up front. **Stamp yourself as
+  the advisor:** include `advisor=<your $HYPERPANES_PANE_ID>` in every payload so an impl agent that
+  hits a strategic fork can consult you mid-build instead of guessing or bouncing the whole subtask
+  (see IMPL.md "Consult your advisor").
+- `spawn_workers {queue, count:N, isolation:"worktree", stream:true, lingerSecs:120, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config <state-dir>/goals-mcp.json -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_SETTINGS:+--settings $HP_GOAL_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-claude-sonnet-5[1m]}'"}`
+  — **keep the visibility trio**: `stream:true` + `--output-format stream-json --verbose` makes the
+  impl agent's turn readable in its pane (a bare `claude -p` prints nothing until it exits, so the
+  pane looks dead for the whole build), and `lingerSecs` holds the pane open after the queue drains
+  (the pane auto-closes when the runner exits, taking the scrollback with it). Add
+  `logDir:"<state-dir>/worker-logs"` when you want the raw transcript to outlive the pane.
+  `spawn_workers` gives each worker **its own pane** by default (`layout:"pane-per-worker"`), so
+  `count:N` = N readable panes; `layout:"single-pane"` multiplexes them into one if you'd rather.
+  The `--mcp-config` flag is required (see `SKILL.md` "MCP config on every spawned claude");
+  without it, account rotation hides `mcp__hyperpanes__*` tools from the impl agent.
+  `${HP_GOAL_SETTINGS:+--settings $HP_GOAL_SETTINGS}` likewise carries the user's statusline
+  (see `SKILL.md` "Statusline on every spawned claude") — harmless when the var is unset.
   (or the bare `hyperpanes worker --queue <q> --count N --worktree -- …`). Impl agents run on
   `$HP_GOAL_IMPL_MODEL` (the tier the user picked in the New-goal dialog; default
   `claude-sonnet-5[1m]`), each in its own git worktree off HEAD.
+  - **Pane budget — cap 16, multiplex overflow.** Never run more than **16** impl-agent worker
+    panes at once: set `count = min(<# ready subtasks>, 16)`. If the goal has more subtasks than
+    16, do **not** raise `count` — the queue's competing-consumers model multiplexes for you: the
+    16 panes drain the remaining subtasks as they free up (subtask 17 runs in whichever pane
+    finishes first, never a 17th pane). This is a soft budget you enforce yourself — keep the
+    workspace legible and the machine within a sane pane count.
   - **Pane identity:** worker panes wear the project's colors too — pass
     `color: $HP_GOAL_PROJECT_COLOR` and `cwd: <project path>` to `spawn_workers`, then
     `rename_pane {paneId, label: $HP_GOAL_PROJECT_NAME, subtitle:"<goal id>: <one-liner>"}` on the
@@ -50,6 +86,17 @@ prompt wedges the pane).
 
 ## 3. Integrate & verify
 
+- **Be the impl agents' advisor while the wave runs.** You're the higher-tier model that wrote the
+  spec, so you're on call. The app types a one-line `[hyperpanes] inbox: N new message(s)…` nudge
+  into your pane when mail lands while you're idle — when you see it, read and answer immediately.
+  Don't rely on it alone: also watch your inbox (`read_messages {paneId:<your $HYPERPANES_PANE_ID>}`)
+  for `<taskId>:` consults and answer fast (`send_message {to:<the `from` pane id on the message>,
+  from:"$HYPERPANES_PANE_ID", body:<crisp decision>}`). A 20-second answer here saves a thrown-away
+  subtask and a whole re-spec round-trip — this is the point of pairing your intelligence with their
+  cheap execution.
+- **Wait for the whole wave — synchronization barrier.** Don't verify or report `done` while any
+  impl pane is still `working`. Collect every subtask's result (or its failure) first; a green check
+  on a half-built tree is a false pass.
 - **Collect** impl results (queue results / their panes). Review each agent's branch/diff; land the
   work on the goal's integration branch, resolving conflicts. Re-scope + re-enqueue a failed
   subtask (bounded).
