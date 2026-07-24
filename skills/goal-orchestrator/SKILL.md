@@ -48,7 +48,7 @@ For each goal you're given (free text):
    project cwd, running `claude --dangerously-skip-permissions` with the spec-agent persona (this
    skill's `SPEC.md`) via `--append-system-prompt-file`. Model:
    use **`$HP_GOAL_SPEC_MODEL`** if it's set in your env (the user picked it in the New-goal
-   dialog); otherwise `claude-opus-4-8[1m]` for a hard/large goal, `claude-fable-5[1m]` for a
+   dialog); otherwise `claude-opus-5[1m]` for a hard/large goal, `claude-fable-5[1m]` for a
    lighter one. Pass the impl-agent model down to the spec agent too (env `HP_GOAL_IMPL_MODEL`, or
    tell it in the prompt) so it fans out impl agents on the chosen tier.
    `set_meta` the pane: `role=spec`, `project=<path>`, `parent=<your pane id>`, `goal=<goal id>`.

@@ -15,7 +15,7 @@ From `claude --help` (v2.1.x). `claude [options] [command] [prompt]`. Defaults t
 ## Model, effort, budget
 | Flag | Values |
 |---|---|
-| `--model <m>` | alias (`opus`,`sonnet`,`haiku`) or full id (`claude-opus-4-8`). |
+| `--model <m>` | alias (`opus`,`sonnet`,`haiku`) or full id (`claude-opus-5`). |
 | `--effort <level>` | `low, medium, high, xhigh, max`. |
 | `--fallback-model <m,…>` | with `-p`; try each when primary is overloaded. |
 | `--max-budget-usd <n>` | with `-p`; cap API spend. |

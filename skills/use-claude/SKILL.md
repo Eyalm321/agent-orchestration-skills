@@ -22,7 +22,7 @@ claude  <identity flags>  <model/effort>  <permission flags>  "<task prompt>"
 - Interactive (default) opens a session pre-seeded with it. Headless `-p`/`--print` runs it and exits.
 
 ## Model & effort
-- `--model <opus|sonnet|haiku | claude-opus-4-8>` · `--effort <low|medium|high|xhigh|max>`.
+- `--model <opus|sonnet|haiku | claude-opus-5>` · `--effort <low|medium|high|xhigh|max>`.
 - `--fallback-model <m>` (with `-p`) retries another model when the primary is overloaded.
 
 ## Mode
