@@ -5,7 +5,7 @@ Use this tier when the `mcp__hyperpanes__*` tools aren't connected **but the app
 ## Discovery + auth
 
 Read `control.json` (re-read per operation — port & token are **ephemeral**, regenerated each launch; the file is absent while control is off):
-- Windows: `%APPDATA%\hyperpanes\control.json` · macOS: `~/Library/Application Support/hyperpanes/control.json` · Linux: `$XDG_CONFIG_HOME/hyperpanes/control.json`. Override via `HYPERPANES_CONTROL_FILE` / `HYPERPANES_USER_DATA`.
+- Windows: `%APPDATA%\hyperpanes\control.json` · macOS: `~/Library/Application Support/hyperpanes/control.json` · Linux: `$XDG_STATE_HOME/hyperpanes/control.json` (default `~/.local/state/hyperpanes/control.json` — runtime state, NOT `$XDG_CONFIG_HOME`). Override via `HYPERPANES_CONTROL_FILE` / `HYPERPANES_USER_DATA` (a set-but-empty `HYPERPANES_CONTROL_FILE` means unset — fall back to the default path).
 
 ```json
 { "port": 51734, "token": "<64-hex>", "pid": 12345, "version": "1.2.3",
