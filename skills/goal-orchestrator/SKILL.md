@@ -124,13 +124,43 @@ On every loop iteration, inspect your live spec-agent/impl panes and judge liven
   surface to the human. Count strikes per pane; don't restart-loop.
 - **Crashed pane (`exited` unexpectedly):** the work queue's reaper already requeues its in-flight
   tasks; re-spawn the spec agent (`resume:true`) if the goal is still active.
+- **Blind spot: watch activity and API-error state, not only queue/branch movement.** A
+  spec/impl agent that dies before its first enqueue or commit gives you **no** queue or branch
+  signal, ever — the only death signal is the pane going idle with `API Error: <code>` as the
+  last line in its tail. On any agent pane idle suspiciously long, `read_pane` its tail, and if it
+  looks dead run `recoverPane action:"inspect"` (control API — see `docs/agent-recovery.md`) and
+  apply its `class`: `transient` → resume; `account-limit` → rotate `CLAUDE_CONFIG_DIR` first;
+  `poisoned` → `repair` then resume, **never** `restart_pane resume:true` a poisoned transcript
+  raw; `unknown` → escalate to the human, don't thrash restarts. Idleness ALONE is not a wedge —
+  a spec agent waiting on its own fan-out is healthy and reads idle (a real watchdog false-positive):
+  `API Error:` in the tail fires immediately, but bare idleness only counts when NO task is claimed
+  across the goal's queues AND no worker process is alive; a live child shell/spinner = working.
+  If a pane id stops resolving while its process and `--log-dir` log stay healthy (see the next bullet:
+  fixed, with a self-heal), fall back to queue state + the worker log — don't misread a vanished pane as a wedged agent.
+  Endpoint recipes staled in a briefing wedge agents too: the authoritative control-API surface is
+  `rs/crates/core/src/control/routes.rs`, not any inlined `curl` line.
+- **Never call `ToolSearch`/deferred tool loading from a spawned agent's first turn.** This is
+  exactly how a transcript gets poisoned in the first place (an unanswered tool call wedges the
+  pane forever) — say so in every spec/impl persona you hand out.
+- **Pane id stops resolving ≠ agent died.** A pane can be absent from the read model while its
+  process is alive and working (historically: a publish race destroyed just-created worker panes;
+  fixed, plus a self-heal that restores such panes with `meta.hp.recovered:"1"` within seconds).
+  Before concluding an agent is gone, fall back to the queue state (`list_tasks` — is its task
+  still leased/progressing?) and its `--log-dir` transcript; re-check `list_panes` after a few
+  seconds in case the self-heal restored it. Endpoints live in
+  `rs/crates/core/src/control/routes.rs` — treat that file as authoritative, not any doc. (The
+  regression test for the race is `rs/crates/core/tests/readmodel_publish.rs`; its red run is
+  against a behavior-preserving extraction commit, not literal main — the buggy composite was only
+  reachable through the GUI.)
 
 ## Fan-out & the work queue
 
 Spec agents do the fan-out, but you own the queue namespace: one queue per goal (e.g. `g1`), so a
 goal's subtasks are isolated and you can `list_tasks`/`purge_queue` per goal. Impl agents drain via
-the runner (`spawn_workers` / `hyperpanes worker --queue <g> --count N --worktree`); subtasks carry
-a `dependsOn` DAG so the queue gates claim order. The queue is durable and self-recovering (see the
+the runner (`spawn_workers` with `base:"<committish>"` / `hyperpanes worker --queue <g> --count N
+--worktree --base <committish>`); subtasks carry
+a `dependsOn` DAG so the queue gates claim order. The worktree fork point is always explicit —
+`--worktree` refuses to run without `--base` (see `docs/worker-worktree-base.md`). The queue is durable and self-recovering (see the
 plan doc), so you don't babysit individual tasks — you watch goals and health.
 
 **Impl-agent pane budget:** fan-out is soft-capped at **16 worker panes** — the spec agent sets
@@ -143,14 +173,17 @@ not a code limit; hold the line so concurrent goals don't explode the pane count
 ### MCP config on every spawned claude
 
 Every `claude` the goals system spawns — this orchestrator, spec agents, impl agents — must carry
-`--mcp-config <state-dir>/goals-mcp.json` (state dir = `hyperpanes_core::persistence::paths::state_dir()`,
-e.g. `~/.local/state/hyperpanes` on Linux). Account rotation below points `CLAUDE_CONFIG_DIR` at
-per-account dirs whose `.claude.json` has no user-scoped MCP registrations, and `claude` ignores
-the default `~/.claude.json` once `CLAUDE_CONFIG_DIR` is set — without the flag, the pane loses
-every `mcp__hyperpanes__*` tool. The app already appends it on your own spawn; pass it down the
-same way when you spawn a spec agent, and tell the spec agent to do the same in its
-`spawn_workers` command, e.g.:
-`spawn_workers {queue, count:N, isolation:"worktree", stream:true, lingerSecs:120, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config <state-dir>/goals-mcp.json -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_WORKER_SETTINGS:+--settings $HP_GOAL_WORKER_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-sonnet[1m]}'"}`
+`--mcp-config <state-dir>/goals-mcp.json --strict-mcp-config` (state dir =
+`hyperpanes_core::persistence::paths::state_dir()`, e.g. `~/.local/state/hyperpanes` on Linux).
+Account rotation below points `CLAUDE_CONFIG_DIR` at per-account dirs, and `claude` ignores the
+default `~/.claude.json` once `CLAUDE_CONFIG_DIR` is set — without `--mcp-config`, the pane loses
+every `mcp__hyperpanes__*` tool. `--strict-mcp-config` stops `claude` merging whatever else the
+account dir or the worktree's `.mcp.json` registers: code-index servers (tokensave, serena) index
+the whole repo **per agent** because every agent sits in its own worktree, so a few agents on a big
+repo cost tens of GB. Goal agents run on hyperpanes tools + the built-ins only. The app already
+appends both flags on your own spawn; pass them down the same way when you spawn a spec agent,
+and tell the spec agent to do the same in its `spawn_workers` command, e.g.:
+`spawn_workers {queue, count:N, isolation:"worktree", base:"<fork committish>", stream:true, lingerSecs:120, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config <state-dir>/goals-mcp.json --strict-mcp-config -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_WORKER_SETTINGS:+--settings $HP_GOAL_WORKER_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-sonnet[1m]}'"}`
 
 ### If the `mcp__hyperpanes__*` tools won't load — drop to the Control API, don't reverse-engineer
 
@@ -188,18 +221,21 @@ doesn't stall the project. The app hands you the account list; you distribute + 
   or unset ⇒ single-account, skip all of this). Your own pane already runs on the first of them
   (the app set your `CLAUDE_CONFIG_DIR`). Transcripts are on a shared store, so `--resume` works
   across accounts.
-- **Spread on spawn:** when you spawn a spec agent, and when the spec agent fans out impl agents,
-  set each pane's `CLAUDE_CONFIG_DIR` to the next dir in `HP_GOAL_ACCOUNTS` (round-robin) — pass it
-  in the `open_pane`/`spawn_workers` env, or `CLAUDE_CONFIG_DIR=<dir> claude …` in the command.
-  Different agents on different accounts = more headroom before any one limit bites.
+- **Spread on spawn:** when you spawn a spec agent, set its `CLAUDE_CONFIG_DIR` to the next dir in
+  `HP_GOAL_ACCOUNTS` (round-robin) — `open_pane` has no dedicated accounts param, so pass it in the
+  pane env or `CLAUDE_CONFIG_DIR=<dir> claude …` in the command. When the spec agent fans out impl
+  agents via `spawn_workers`, it instead splits `HP_GOAL_ACCOUNTS` on newlines and passes the array
+  as `accounts` — `spawn_workers` round-robins one `CLAUDE_CONFIG_DIR` per worker pane itself
+  (pane *i* gets `accounts[i % len]`). Different agents on different accounts = more headroom
+  before any one limit bites.
 - **Rotate on exhaustion:** when you see a pane hit the rate/weekly-limit message (`read_pane`),
   mark that dir exhausted in your ledger and `restart_pane` it with `resume:true` and
   `env:{ "CLAUDE_CONFIG_DIR": "<next non-exhausted dir>" }` — the shared transcript store lets the
   conversation continue under the new account. If **all** dirs are exhausted, pause spawning and
   surface it — there's no budget breaker, so exhaustion is the only hard stop besides human cancel.
 
-Pass `HP_GOAL_ACCOUNTS` down to each spec agent (env or prompt) so it can rotate its own impl
-agents the same way.
+Pass `HP_GOAL_ACCOUNTS` down to each spec agent (env or prompt) so it can pass it as `accounts` to
+its own `spawn_workers` calls.
 
 ## Loop discipline
 

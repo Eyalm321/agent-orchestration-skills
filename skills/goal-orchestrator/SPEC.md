@@ -53,7 +53,12 @@ prompt wedges the pane).
   the advisor:** include `advisor=<your $HYPERPANES_PANE_ID>` in every payload so an impl agent that
   hits a strategic fork can consult you mid-build instead of guessing or bouncing the whole subtask
   (see IMPL.md "Consult your advisor").
-- `spawn_workers {queue, count:N, isolation:"worktree", stream:true, lingerSecs:120, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config <state-dir>/goals-mcp.json -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_WORKER_SETTINGS:+--settings $HP_GOAL_WORKER_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-sonnet[1m]}'"}`
+- `spawn_workers {queue, count:N, isolation:"worktree", base:"<fork committish>", stream:true, lingerSecs:120,
+  project: $HP_GOAL_PROJECT_NAME, subtitle:"<goal id>: <one-liner>", accounts: <HP_GOAL_ACCOUNTS
+  split on newlines>, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config
+  <state-dir>/goals-mcp.json --strict-mcp-config -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose
+  --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_WORKER_SETTINGS:+--settings
+  $HP_GOAL_WORKER_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-sonnet[1m]}'"}`
   — **keep the visibility trio**: `stream:true` + `--output-format stream-json --verbose` makes the
   impl agent's turn readable in its pane (a bare `claude -p` prints nothing until it exits, so the
   pane looks dead for the whole build), and `lingerSecs` holds the pane open after the queue drains
@@ -63,11 +68,25 @@ prompt wedges the pane).
   `count:N` = N readable panes; `layout:"single-pane"` multiplexes them into one if you'd rather.
   The `--mcp-config` flag is required (see `SKILL.md` "MCP config on every spawned claude");
   without it, account rotation hides `mcp__hyperpanes__*` tools from the impl agent.
+  `--strict-mcp-config` is required too: without it the worker also loads every code-index MCP
+  server (tokensave, serena) the account dir / worktree registers, and each one indexes the repo
+  separately per worktree — a handful of workers on a big repo eats tens of GB.
   `${HP_GOAL_WORKER_SETTINGS:+--settings $HP_GOAL_WORKER_SETTINGS}` likewise carries the user's statusline
+  — note this is the **worker** settings file, NOT the `$HP_GOAL_SETTINGS` you run under. It
+  additionally sets `crossSessionInbound: "accept"` (an unattended `-p` pane otherwise HOLDS
+  incoming messages behind an approval dialog it cannot show, and they expire in 5 minutes) and
+  denies `SendMessage`/`ListAgents`: those tools are UNSCOPED, so a worker holding them could
+  enumerate and message every Claude session on the machine, straight around the control
+  plane's capability scoping. Workers consult you over the scoped bus (`send_message` to the
+  `advisor` pane id stamped on their payload) — that path is unchanged.
   (see `SKILL.md` "Statusline on every spawned claude") — harmless when the var is unset.
-  (or the bare `hyperpanes worker --queue <q> --count N --worktree -- …`). Impl agents run on
+  (or the bare `hyperpanes worker --queue <q> --count N --worktree --base <committish> -- …`).
+  Impl agents run on
   `$HP_GOAL_IMPL_MODEL` (the tier the user picked in the New-goal dialog; default
-  `sonnet[1m]`), each in its own git worktree off HEAD.
+  `sonnet[1m]`), each in its own git worktree forked from the `base` you pass — always
+  explicit, never the shared checkout's HEAD (`--worktree` refuses to run without `--base`):
+  `main` for a first wave, the goal's integration branch for a dependent wave (resolved per task
+  claim, so a branch that advances mid-run is picked up). See `docs/worker-worktree-base.md`.
   - **Pane budget — cap 16, multiplex overflow.** Never run more than **16** impl-agent worker
     panes at once: set `count = min(<# ready subtasks>, 16)`. If the goal has more subtasks than
     16, do **not** raise `count` — the queue's competing-consumers model multiplexes for you: the
@@ -75,14 +94,21 @@ prompt wedges the pane).
     finishes first, never a 17th pane). This is a soft budget you enforce yourself — keep the
     workspace legible and the machine within a sane pane count.
   - **Pane identity:** worker panes wear the project's colors too — pass
-    `color: $HP_GOAL_PROJECT_COLOR` and `cwd: <project path>` to `spawn_workers`, then
-    `rename_pane {paneId, label: $HP_GOAL_PROJECT_NAME, subtitle:"<goal id>: <one-liner>"}` on the
-    returned pane id, so a glance at the workspace reads project → task.
+    `project: $HP_GOAL_PROJECT_NAME` and `subtitle:"<goal id>: <one-liner>"` to `spawn_workers`
+    (the app resolves the default cwd + frame color from the project registry; explicit `cwd`/
+    `color` still win if you pass them) — `rename_pane` is no longer needed for worker identity,
+    so a glance at the workspace reads project → task. `spawn_workers` also stamps every worker
+    pane with default org meta (role="worker", task="queue:<q>", `parent` = your pane), so an impl
+    agent's `send_to_parent` reaches you out of the box — no manual `set_meta` step; a caller
+    `meta` key always wins over the defaults.
   - **Account rotation:** if `HP_GOAL_ACCOUNTS` is set (newline-separated `CLAUDE_CONFIG_DIR`s
-    the orchestrator passed down), set each impl agent's `CLAUDE_CONFIG_DIR` to a different dir
-    from the list (round-robin) — e.g. prefix the command `CLAUDE_CONFIG_DIR=<dir> claude …` or
-    set it in the worker env — so impl agents spread across accounts. Transcripts are shared, so
-    `--resume` still works if one is later restarted under another account.
+    the orchestrator passed down), split it on newlines and pass the array as `accounts` to
+    `spawn_workers` — it round-robins one `CLAUDE_CONFIG_DIR` per worker pane (pane *i* gets
+    `accounts[i % len]`, overriding `env.CLAUDE_CONFIG_DIR`) so impl agents spread across accounts.
+    Rotation needs one pane per worker: `accounts` with `layout:"single-pane"` and count > 1 fails
+    loudly (one process env cannot rotate per-worker).
+    Transcripts are shared, so `--resume` still works if one is later restarted under another
+    account.
 
 ## 3. Integrate & verify
 
@@ -97,6 +123,20 @@ prompt wedges the pane).
 - **Wait for the whole wave — synchronization barrier.** Don't verify or report `done` while any
   impl pane is still `working`. Collect every subtask's result (or its failure) first; a green check
   on a half-built tree is a false pass.
+- **Watch pane activity and API-error state, not just queue movement.** An impl agent that dies
+  before its first commit gives you no queue/branch signal at all — the only tell is the pane idle
+  with `API Error: <code>` trailing its tail. If a wave member goes quiet longer than its subtask
+  should take, `read_pane` it, and if it looks dead run `recoverPane action:"inspect"` (control API
+  — see `docs/agent-recovery.md`): `transient` → resume; `account-limit` → rotate
+  `CLAUDE_CONFIG_DIR` first; `poisoned` → `repair` then resume, never resume a poisoned transcript
+  raw; `unknown` → escalate to your parent orchestrator, don't thrash restarts. Idleness alone is
+  NOT a wedge (an agent waiting on its own fan-out reads idle): `API Error:` in the tail fires
+  immediately; bare idleness only counts when no task is claimed on the goal's queues AND no worker
+  process is alive. A pane id that stops resolving while its process + `--log-dir` log stay healthy
+  is a read-model dropout, not a death — fall back to queue state and the worker log. For endpoint
+  shapes trust `rs/crates/core/src/control/routes.rs`, not inlined recipes. Never let a spawned
+  impl agent call `ToolSearch`/deferred tool loading on its first turn — an unanswered tool call is
+  exactly what poisons a transcript.
 - **Collect** impl results (queue results / their panes). Review each agent's branch/diff; land the
   work on the goal's integration branch, resolving conflicts. Re-scope + re-enqueue a failed
   subtask (bounded).
