@@ -51,7 +51,7 @@ For each goal you're given (free text):
    `IMPL.md`; pass it down to every spec agent so its `spawn_workers` can point impl agents at
    `$HP_GOAL_PERSONA_DIR/IMPL.md`). Model:
    use **`$HP_GOAL_SPEC_MODEL`** if it's set in your env (the user picked it in the New-goal
-   dialog); otherwise `claude-opus-5[1m]` for a hard/large goal, `claude-fable-5[1m]` for a
+   dialog); otherwise `opus[1m]` for a hard/large goal, `fable[1m]` for a
    lighter one. Pass the impl-agent model down to the spec agent too (env `HP_GOAL_IMPL_MODEL`, or
    tell it in the prompt) so it fans out impl agents on the chosen tier.
    `set_meta` the pane: `role=spec`, `project=<path>`, `parent=<your pane id>`, `goal=<goal id>`.
@@ -150,7 +150,7 @@ the default `~/.claude.json` once `CLAUDE_CONFIG_DIR` is set — without the fla
 every `mcp__hyperpanes__*` tool. The app already appends it on your own spawn; pass it down the
 same way when you spawn a spec agent, and tell the spec agent to do the same in its
 `spawn_workers` command, e.g.:
-`spawn_workers {queue, count:N, isolation:"worktree", stream:true, lingerSecs:120, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config <state-dir>/goals-mcp.json -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_SETTINGS:+--settings $HP_GOAL_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-claude-sonnet-5[1m]}'"}`
+`spawn_workers {queue, count:N, isolation:"worktree", stream:true, lingerSecs:120, command:"sh -c 'claude --dangerously-skip-permissions --mcp-config <state-dir>/goals-mcp.json -p \"$HP_TASK_PAYLOAD\" --output-format stream-json --verbose --append-system-prompt-file $HP_GOAL_PERSONA_DIR/IMPL.md ${HP_GOAL_WORKER_SETTINGS:+--settings $HP_GOAL_WORKER_SETTINGS} --model ${HP_GOAL_IMPL_MODEL:-sonnet[1m]}'"}`
 
 ### If the `mcp__hyperpanes__*` tools won't load — drop to the Control API, don't reverse-engineer
 
