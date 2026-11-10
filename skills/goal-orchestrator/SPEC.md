@@ -157,6 +157,14 @@ prompt wedges the pane).
   shapes trust `rs/crates/core/src/control/routes.rs`, not inlined recipes. Never let a spawned
   impl agent call `ToolSearch`/deferred tool loading on its first turn — an unanswered tool call is
   exactly what poisons a transcript.
+- **Your own builds: one target dir per goal, and you clean it up.** Builds you run yourself
+  (verify, integrate, acceptance) share ONE ad-hoc target dir for the whole goal (e.g.
+  `CARGO_TARGET_DIR=~/.cache/hyperpanes/<goal>-target`). Never make one per branch, and never put
+  it in `/tmp` or inside a worktree. Before a cold build, check free space
+  (`df -BG --output=avail <dir>`). Under 40G, delete `<target>/*/incremental` first. If it's still
+  under 40G, don't build: report `blocked disk <free>G`. When the goal is done, delete the whole
+  dir. The worker runner bounds its own cache slots (hyperpanes#74: slot cap, cache budget, soft floor; `hyperpanes
+  worker --prune-cache [--dry-run]`), but your ad-hoc dir is outside those slots and is your job.
 - **Collect** impl results (queue results / their panes). Review each agent's branch/diff; land the
   work on the goal's integration branch, resolving conflicts. Re-scope + re-enqueue a failed
   subtask (bounded). An acked task whose branch is empty (`git log <base>..<branch>` shows nothing)

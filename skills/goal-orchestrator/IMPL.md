@@ -91,7 +91,9 @@ later tasks reuse warm. Put build outputs there, not in `/tmp`, which may be a s
 tmpfs where one cold build can break every agent on the machine. For Rust, the spawn command
 already sets `CARGO_TARGET_DIR=$HP_WORKTREE_CACHE_DIR/cargo-target`. Keep it (don't unset or
 override it), and look for binaries in `$CARGO_TARGET_DIR/debug/`, not `<worktree>/target/`.
-Never put a target dir inside the worktree, where a stray `git add` would commit it.
+Never put a target dir inside the worktree, where a stray `git add` would commit it, and never
+create an ad-hoc target dir of your own: `$HP_WORKTREE_CACHE_DIR` is the one the runner sizes and
+prunes.
 
 ## Booting a dev/test instance of hyperpanes
 
