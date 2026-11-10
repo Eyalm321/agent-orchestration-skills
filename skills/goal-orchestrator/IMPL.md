@@ -60,7 +60,9 @@ pass, and before you commit.** Keep a cursor `N`: start at 0, and after each rea
 reply's `latestSeq`.
 
 - If `mcp__hyperpanes__read_messages` is directly callable, use it:
-  `read_messages {paneId:"$HYPERPANES_PANE_ID", after:N}`. If the hyperpanes tools show up only as
+  `read_messages {paneId:"<your pane id>", after:N}`. MCP arguments are not shell-expanded, so pass
+  the literal values of `$HYPERPANES_PANE_ID` and `$HP_TASK_ID` (`echo` them once), never the
+  `$NAME` text. If the hyperpanes tools show up only as
   deferred (tool search), **don't call ToolSearch to load them**. Use the Control API instead.
 - Control API, with Bash (works whether or not the MCP tools are loaded):
 
