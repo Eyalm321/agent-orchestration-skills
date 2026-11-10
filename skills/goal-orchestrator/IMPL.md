@@ -86,3 +86,9 @@ Never set `HYPERPANES_ALLOW_SHARED_DATA=1` to get past the refusal; fix the env 
 - If the payload is ambiguous, do the most reasonable interpretation and say so in your summary;
   fail (non-zero) only if you truly cannot proceed, so it requeues rather than silently acking bad
   work.
+- **Running version vs. the release a fix shipped in.** Before relying on a hyperpanes fix (or
+  reporting one as live), check the version actually running: `whoami` / `control_status` (the
+  `app.version` / `version` field), or `$HYPERPANES_VERSION` in a pane as a fallback (it is fixed
+  when the pane spawns, so the API wins after an upgrade). If it is older than the release the fix
+  shipped in, say "fixed in vX, not installed (running vY)" and don't assume the fixed behavior;
+  merged but not yet released is "merged, not released".
