@@ -198,10 +198,11 @@ the `CARGO_TARGET_DIR` prefix points cargo at the per-task warm cache slot the r
 `--mcp-config` connects the server, but that does not make its tools callable. When the account
 enables tool search (`ENABLE_TOOL_SEARCH`, often set in the account's `settings.json` env, which
 beats the process env), every `mcp__hyperpanes__*` tool is deferred, and an impl agent must not
-call ToolSearch on its single `-p` turn. Only an `env` entry `ENABLE_TOOL_SEARCH: "false"` in the
-worker's `--settings` file makes them directly callable. Either way, impl agents read their inbox
-and report over the Control API as their fallback (IMPL.md "Checkpoints"). Nothing is pushed into
-an impl agent: a correction reaches it only when it polls at a checkpoint.
+call ToolSearch on its single `-p` turn. `"alwaysLoad": true` on the `hyperpanes` server entry in
+`goals-mcp.json` keeps that one server's tools directly callable while tool search stays on for
+everything else; check your `goals-mcp.json` has it. Without it, impl agents read their inbox and
+report over the Control API (IMPL.md "Checkpoints"). Nothing is pushed into an impl agent: a
+correction reaches it only when it polls at a checkpoint.
 
 ### If the `mcp__hyperpanes__*` tools won't load — drop to the Control API, don't reverse-engineer
 
