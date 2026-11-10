@@ -9,8 +9,9 @@ hyperpanes runs **single-instance**: a second `hyperpanes …` while it's open r
 `hyperpanes worker` is the one subcommand that is **not** launch/compose: it's a **control-API client** that drains a durable work queue, so it needs the **app already running with Allow agent control on** (it discovers `control.json` itself, or `HYPERPANES_CONTROL_FILE`). App ≥0.0.15.
 
 ```
-hyperpanes worker --queue <name> [--worker <id>] [--count N] [--worktree] \
-  [--retry-window <secs>] [--nack-delay <ms>] -- <cmd> [args...]
+hyperpanes worker --queue <name> [--worker <id>] [--count N] [--worktree --base <committish>] \
+  [--retry-window <secs>] [--nack-delay <ms>] [--stream] [--log-dir <dir>] [--linger <secs>] \
+  -- <cmd> [args...]
 ```
 
 Loops: **claim** one task → run `<cmd>` with the task injected as env (`HP_TASK_ID`, `HP_TASK_PAYLOAD`, `HP_TASK_TITLE`, `HP_FENCING_TOKEN`, `HP_QUEUE`) → **ack** on exit 0 / **nack** on non-zero → repeat until the queue drains, then exit 0 (a pane running it auto-closes). The child runs **directly** (no shell); for `$HP_TASK_PAYLOAD` expansion wrap it: `-- sh -c 'claude -p "$HP_TASK_PAYLOAD"'`.
@@ -18,7 +19,8 @@ Loops: **claim** one task → run `<cmd>` with the task injected as env (`HP_TAS
 | Flag | Effect |
 |---|---|
 | `--count N` | N competing workers in one process (exits when all drain). |
-| `--worktree` | run each task in a throwaway git worktree off HEAD — auto-removed on finish (commit stays on its branch); `.serena/` excluded so `git add -A` can't sweep it in. Needs cwd in a git repo. |
+| `--worktree --base <committish>` | run each task in a throwaway git worktree forked from `--base` (required; `--base HEAD` if you really mean the cwd's HEAD), on disk under the hyperpanes cache dir. The directory is removed as soon as the child exits; **commits stay on its branch, uncommitted work is deleted, and exit 0 is still acked**, so the child must commit before it exits. `.serena/` excluded so `git add -A` can't sweep it in. Needs cwd in a git repo. |
+| `--stream` / `--log-dir <dir>` / `--linger <secs>` | render a `claude --output-format stream-json` child as readable progress / tee each child's raw output to `<dir>/<queue>-<taskId>.log` (outlives the pane) / hold the pane open after drain. |
 | `--retry-window <secs>` | keep polling after the queue empties so backoff retries get reclaimed in one run (default 0 = exit on drain). |
 | `--nack-delay <ms>` | override the retry backoff on failure. |
 | `--worker <id>` | worker id (shown as `claimedBy`; default `worker-<pid>`, suffixed `-1..-N` under `--count`). |

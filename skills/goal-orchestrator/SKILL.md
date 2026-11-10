@@ -190,6 +190,14 @@ and tell the spec agent to do the same in its `spawn_workers` command, e.g.:
 (worker panes are spawned by the app and don't inherit the spec agent's env, hence the `env` map;
 the `CARGO_TARGET_DIR` prefix points cargo at the per-task warm cache slot the runner exports)
 
+`--mcp-config` connects the server, but that does not make its tools callable. When the account
+enables tool search (`ENABLE_TOOL_SEARCH`, often set in the account's `settings.json` env, which
+beats the process env), every `mcp__hyperpanes__*` tool is deferred, and an impl agent must not
+call ToolSearch on its single `-p` turn. Only an `env` entry `ENABLE_TOOL_SEARCH: "false"` in the
+worker's `--settings` file makes them directly callable. Either way, impl agents read their inbox
+and report over the Control API as their fallback (IMPL.md "Checkpoints"). Nothing is pushed into
+an impl agent: a correction reaches it only when it polls at a checkpoint.
+
 ### If the `mcp__hyperpanes__*` tools won't load — drop to the Control API, don't reverse-engineer
 
 Some harnesses load tools on demand and **cannot surface MCP tool schemas** even when the server

@@ -90,7 +90,7 @@ A durable, SQLite-backed **work queue** (competing consumers) — the inverse of
 | `purge_queue` | `queue`(req) | drops only **terminal** (done/failed/dead) tasks; `{ok,removed}`. |
 | `spawn_workers` | `queue`(req), `command`(req), `count?`(default 1), `isolation?`(`none`\|`worktree`), `cwd?`, `color?`, `windowId?` | **One-call pool.** Opens a pane running the native `hyperpanes worker` runner bound to `queue`: runs `command` via `sh -c` per claimed task with the task injected as env (`HP_TASK_ID/PAYLOAD/TITLE/FENCING_TOKEN/QUEUE`), acks on exit 0 / nacks on non-zero, `--count` competing workers, `isolation:"worktree"` = throwaway git worktree per task (auto-removed). `{ok,queue,count,isolation,paneIds}`. Binary from `HYPERPANES_WORKER_BIN` (default `hyperpanes`). **Needs app ≥0.0.15 + mcp ≥0.1.10.** |
 
-**Pool vs hand-rolled.** `spawn_workers` (or the bare `hyperpanes worker` CLI — see [CLI.md](CLI.md)) replaces hand-written claim/ack loops + manual pane/worktree teardown: a worker exits on drain → its pane auto-closes; `isolation:"worktree"` auto-removes the worktree (the commit stays on its branch).
+**Pool vs hand-rolled.** `spawn_workers` (or the bare `hyperpanes worker` CLI — see [CLI.md](CLI.md)) replaces hand-written claim/ack loops + manual pane/worktree teardown: a worker exits on drain → its pane auto-closes; `isolation:"worktree"` auto-removes the worktree (the commit stays on its branch; uncommitted work is deleted, and exit 0 is still acked).
 
 ## Resources (subscribable)
 

@@ -29,6 +29,8 @@ Read `control.json` (re-read per operation — port & token are **ephemeral**, r
 | `POST /tokens` | `{scope:{windowIds?,tabIds?,paneIds?}, ttlMs?}` | `{ok,token,scope,expiresAt,port,events}` | 400 · 403 escalation |
 | `POST /command` | `{type, paneId?, tabId?, windowId?, …}` | `{ok,result}` | 400 · 403 scope · 404 window · **504 renderer wedged** · **500 store threw** |
 
+**`newPane` shape:** every command needs a `windowId` (from `GET /state`) or a `paneId` whose window to use; without one it fails `400 command needs a paneId or windowId`. The spawn spec (`command`, `args`, `cwd`, `label`, `subtitle`, `color`, `shell`, `env`, `meta`, `project`) nests under `"pane"`; top-level spec fields are a 400. Example: `{"type":"newPane","windowId":0,"pane":{"command":"sh","args":["-c","echo hi"],"meta":{"role":"worker"}}}`.
+
 **`/command` is the catch-all for every structural mutation** — open/close/focus/restart/rename/recolor pane, set layout, set meta — selected by the `type` string (the server forwards `type` opaquely to the renderer; the literals come from the MCP layer, e.g. `newPane`, `closePane`, `focusPane`, `restartPane`, `renamePane`, `recolorPane`, `setLayout`, `setMeta`). After a `newPane`, the pane is briefly absent from `/state` (debounced publish) — **poll `/state` (~75 ms, ~3 s cap) until it appears** before driving it.
 
 ## MCP tool → HTTP
@@ -44,7 +46,7 @@ Read `control.json` (re-read per operation — port & token are **ephemeral**, r
 | `close/focus/restart/rename/recolor_pane`, `set_layout`, `set_meta` | `POST /command {type:…}` |
 | `mint_token` | `POST /tokens` |
 | `lock_pane` / `unlock_pane` | `POST` / `DELETE /panes/:id/lock` |
-| `send_message` / `read_messages` | `POST` / `GET /panes/:id/messages` |
+| `send_message` / `read_messages` | `POST` / `GET /panes/:id/messages` (pull only: nothing tells a non-interactive `claude -p` pane that mail arrived; it must poll) |
 | `send_to_parent` / `broadcast_subtree` | `GET /state` (resolve `meta.parent` / subtree) **then** N× `POST …/messages` |
 
 ## /events WebSocket
