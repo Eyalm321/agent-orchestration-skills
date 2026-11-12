@@ -32,7 +32,7 @@ Server `hyperpanes-mcp` over stdio. Tool results are JSON; failures set `isError
 
 | Tool | Params | Notes |
 |---|---|---|
-| `open_pane` | `command?`, `args?`(string[]), `label?`, `cwd?`, `shell?`, `color?`, `meta?`(record<string,string>), `env?`(record<string,string>), `windowId?`(default first window) | `{ok,windowId,paneId,ready}`. `command` alone → shell-parsed; `command`+`args` → **direct no-shell spawn, verbatim argv** (each array element is one arg, do not pre-quote). `env` hands a scoped token to a child. Reserved `meta` keys: `role/parent/agentType/task`. |
+| `open_pane` | `command?`, `args?`(string[]), `label?`, `cwd?`, `shell?`, `color?`, `meta?`(record<string,string>), `env?`(record<string,string>), `project?`, `projectTab?`(boolean, needs `project`: open in that project's tab), `tabId?`(open in this existing tab; exclusive with `projectTab`), `windowId?`(default first window) | `{ok,windowId,paneId,ready,warning?}` (`warning` when an older app ignored `tabId`). `command` alone → shell-parsed; `command`+`args` → **direct no-shell spawn, verbatim argv** (each array element is one arg, do not pre-quote). `env` hands a scoped token to a child. Reserved `meta` keys: `role/parent/agentType/task`. |
 | `set_layout` | `layout`(req, the 6 ids), `tabId?`(default first window's active tab) | `{ok,tabId,layout}`. |
 | `focus_pane` / `close_pane` / `restart_pane` | `paneId`(req) | `{ok,paneId,action}`. close terminates the shell; restart kills + respawns. |
 | `rename_pane` | `paneId`(req), `label`(req), `subtitle?` (`""` clears) | live rename. |
