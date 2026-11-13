@@ -1,9 +1,12 @@
 ---
 name: use-hyperpanes
-description: Drive the hyperpanes terminal-workspace app — spawn, arrange, read, and drive tiled terminal panes, and orchestrate multi-agent pane orgs — preferring the hyperpanes MCP and falling back to the `hyperpanes` CLI for launch when the MCP isn't connected. Use when the user wants to open or launch a hyperpanes workspace, tile/spawn/label/color terminal panes, read or drive a pane, run or converse with an agent inside a pane, orchestrate a manager→worker pane tree, or mentions hyperpanes, panes, or a terminal workspace.
+description: "Drive the hyperpanes tiling-terminal app: spawn, arrange, read and drive panes, run multi-agent pane orgs (MCP, control API or CLI). Use when hyperpanes or panes come up."
 ---
 
 # Use Hyperpanes
+
+Owner: hyperpanes
+Last verified: 2026-11-13
 
 [hyperpanes](https://github.com/Eyalm321/hyperpanes) is an agent-first tiling-terminal app: one window of labeled, color-framed terminal panes. Each pane can run a command/agent; an MCP lets you spawn, read, and drive panes and wire up a manager→worker agent org.
 

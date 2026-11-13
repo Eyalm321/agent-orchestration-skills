@@ -1,9 +1,12 @@
 ---
 name: use-claude
-description: Launch the `claude` command-line tool as a sub-agent — give it an identity with `--append-system-prompt`, a task via the prompt argument, and choose model/effort/permission-mode, interactive or headless `-p`. Use when spawning, opening, or scripting a `claude` CLI process (in a shell, a hyperpanes pane, a fan-out worktree, or standalone), giving a launched agent a persona/system prompt, or passing a prompt plus flags to `claude` on the command line. This is the CLI, not the Claude API/SDK (use claude-api for that).
+description: "Launch the `claude` CLI as a sub-agent: identity via --append-system-prompt, task as prompt, model/effort/permission flags, interactive or headless -p. Use when spawning claude processes; not the API/SDK."
 ---
 
 # Use Claude (CLI)
+
+Owner: hyperpanes
+Last verified: 2026-11-13
 
 Spawn a `claude` process with a clear split: **identity** (who it is — a system prompt) and **task** (what to do now — the prompt argument). Substrate-agnostic — the same invocation works in a raw shell, a [hyperpanes](../use-hyperpanes/SKILL.md) pane (`open_pane`), or a `/fan-out` worktree.
 
