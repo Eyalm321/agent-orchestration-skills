@@ -31,6 +31,14 @@ Or, once pushed to GitHub, via the [skills CLI](https://skills.sh):
 npx skills@latest add <your-github-user>/<repo>
 ```
 
+## The goal-org plugin
+
+`plugins/goal-org/` packages `goal-orchestrator` (the goals system's orchestrator, spec and impl
+personas) and `use-hyperpanes` as one Claude Code plugin. Goal agents wear it with
+`claude --plugin-dir`. Its skill folders are symlinks to `skills/`, so the text has one home.
+`scripts/build-goal-org.sh <out-dir>` writes it as plain files, which is the tree hyperpanes bundles
+byte for byte. See [plugins/goal-org/README.md](plugins/goal-org/README.md).
+
 ## Requirements
 
 - **Claude Code** — the `claude` CLI on `PATH`.
