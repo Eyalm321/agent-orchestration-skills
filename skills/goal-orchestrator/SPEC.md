@@ -100,6 +100,16 @@ prompt wedges the pane).
     and friends in the command are empty unless you pass them in `env` as above (or inline the
     literal values). A missing persona dir fails every claim (`Append system prompt file not
     found: /IMPL.md`) and burns the task's attempts.
+  - **Launch profile (shorter, and nothing to thread).** When `hyperpanes launch-profile --tier
+    worker` prints JSON (the app has the subcommand), use it instead of the long command above:
+    `command:"sh -c 'env ${HP_WORKTREE_CACHE_DIR:+\"CARGO_TARGET_DIR=$HP_WORKTREE_CACHE_DIR/cargo-target\"}
+    hyperpanes launch-profile --tier worker --exec -- -p \"$HP_TASK_PAYLOAD\" --output-format
+    stream-json --verbose --model <impl model>'"`. The profile adds what the app owns: the goal-org
+    plugin (`--plugin-dir`), `IMPL.md`, the MCP config with `--strict-mcp-config`, the worker settings
+    file, `--dangerously-skip-permissions` and the env (`ENABLE_TOOL_SEARCH=false`, the control file),
+    so `env:{HP_GOAL_PERSONA_DIR, HP_GOAL_WORKER_SETTINGS}` is no longer needed (inline the impl model,
+    or keep `HP_GOAL_IMPL_MODEL` in `env`). Keep `stream:true`, `accounts`, `project`/`projectTab`
+    and `base` as above. An app without the subcommand: the long form.
   - **Disk and build cache.** Task worktrees live on disk under the hyperpanes cache dir
     (`~/.cache/hyperpanes/worktrees/<repo>-<hash>/` on Linux), never `/tmp`. Override with
     `env:{HYPERPANES_WORKTREE_ROOT:…}`. Each task also gets `HP_WORKTREE_CACHE_DIR`, a warm build
