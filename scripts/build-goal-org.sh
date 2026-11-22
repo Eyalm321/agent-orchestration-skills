@@ -4,7 +4,7 @@
 #   scripts/build-goal-org.sh <out-dir>
 #
 # <out-dir> is replaced. The result holds .claude-plugin/plugin.json, README.md and
-# skills/{goal-orchestrator,use-hyperpanes}/, each file byte-identical to its source in this repo.
+# skills/{goal-orchestrator,goal-spec,goal-impl,use-hyperpanes}/, each file byte-identical to its source in this repo.
 set -euo pipefail
 
 out="${1:?usage: build-goal-org.sh <out-dir>}"
