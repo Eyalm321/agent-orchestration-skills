@@ -1,7 +1,7 @@
 {
   "name": "goal-org",
-  "version": "0.1.0",
-  "description": "The hyperpanes goals system's agent skills: the goal orchestrator, spec agent and impl agent personas, and how to drive hyperpanes panes. Worn by the goal agents hyperpanes starts.",
+  "version": "0.2.0",
+  "description": "The hyperpanes goals system's agent skills: the goal orchestrator, spec agent and impl agent personas, the goal-spec and goal-impl skills that let any pane take those roles, and how to drive hyperpanes panes.",
   "author": { "name": "Eyalm321" },
   "repository": "https://github.com/Eyalm321/agent-orchestration-skills",
   "license": "MIT",

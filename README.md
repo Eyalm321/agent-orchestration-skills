@@ -34,7 +34,9 @@ npx skills@latest add <your-github-user>/<repo>
 ## The goal-org plugin
 
 `plugins/goal-org/` packages `goal-orchestrator` (the goals system's orchestrator, spec and impl
-personas) and `use-hyperpanes` as one Claude Code plugin. Goal agents wear it with
+personas), `goal-spec` and `goal-impl` (user-invoked skills that let any pane take the spec or impl
+role; thin adapters over `goal-orchestrator/SPEC.md` and `IMPL.md`, which stay the one source of the
+persona text) and `use-hyperpanes` as one Claude Code plugin. Goal agents wear it with
 `claude --plugin-dir`. Its skill folders are symlinks to `skills/`, so the text has one home.
 `scripts/build-goal-org.sh <out-dir>` writes it as plain files, which is the tree hyperpanes bundles
 byte for byte. See [plugins/goal-org/README.md](plugins/goal-org/README.md).
