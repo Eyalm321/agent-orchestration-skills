@@ -45,7 +45,7 @@ All three **type into a live shell**. Each needs `confirm:true` and the gates be
 
 | Tool | Params | Notes |
 |---|---|---|
-| `send_input` | `paneId`(req), `data`(req), `submit?`(bool), `submitDelayMs?`(default ~40), `confirm?`, `owner?` | `submit:true` writes `data` (no trailing `\n`!) then a **separate** Enter after the delay. A trailing `\n` alone is read as bracketed paste, not Enter. |
+| `send_input` | `paneId`(req), `data`(req), `submit?`(bool), `submitDelayMs?`(default 250), `confirm?`, `owner?` | `submit:true` writes `data` (no trailing `\n`!) then a **separate** Enter after the delay. A trailing `\n` alone is read as bracketed paste, not Enter. |
 | `send_keys` | `paneId`(req), `keys`(req, string[]), `confirm?`, `owner?` | Named keys: `enter, escape, tab, shift+tab, up/down/left/right, home/end, pageup/pagedown, backspace, delete, space, ctrl+<letter>`. For menus, y/n & trust prompts, cancelling. |
 | `prompt_pane` | `paneId`(req), `text`(req), `confirm?`, `owner?`, `settleMs?`(600), `timeoutMs?`(30000), `tail?` | **One full TUI turn**: type → submit → wait for settle → return `{ok,settled,timedOut,awaitingInput,cursor,recovered?,reply}` (`reply` = rendered screen). Has a one-shot cold-start self-heal (`recovered:true`) for a swallowed first Enter. |
 
